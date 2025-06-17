@@ -7,6 +7,8 @@
 - 基于FastAPI的高性能异步API
 - Celery分布式任务队列
 - Redis作为消息代理和结果后端
+  - 支持测试环境单机模式
+  - 支持生产环境集群模式
 - 三级任务体系（基础任务、组合任务、工作流任务）
 - 完整的任务生命周期管理
 - 内置定时任务支持
@@ -40,13 +42,34 @@ cp .env.example .env
 # 根据需要修改.env文件
 ```
 
-4. 启动Redis：
+4. Redis配置：
+
+#### 测试环境（单机模式）
 ```bash
 # 使用Docker启动Redis（推荐）
 docker run -d -p 6379:6379 redis:latest
 
 # 或使用本地Redis服务
 redis-server
+
+# 配置环境变量
+ENVIRONMENT=test
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+REDIS_PASSWORD=
+```
+
+#### 生产环境（集群模式）
+```bash
+# 配置环境变量
+ENVIRONMENT=prod
+REDIS_CLUSTER_PASSWORD=your_password
+REDIS_CLUSTER_NODES='[
+    {"host":"redis-node1","port":6379},
+    {"host":"redis-node2","port":6379},
+    {"host":"redis-node3","port":6379}
+]'
 ```
 
 5. 启动服务：
@@ -68,6 +91,51 @@ celery -A celery_app.task_registry beat --loglevel=info
 ```bash
 docker-compose up -d
 ```
+
+## Redis配置说明
+
+### 配置文件结构
+
+```
+config/
+└── redis_config.py       # Redis配置类
+utils/
+└── redis_client.py       # Redis客户端工具类
+```
+
+### Redis客户端使用示例
+
+```python
+from utils.redis_client import RedisClient
+
+# 获取Redis客户端实例（自动根据环境选择单机或集群模式）
+redis_client = RedisClient.get_instance()
+
+# 使用Redis
+redis_client.set("key", "value")
+value = redis_client.get("key")
+```
+
+### 环境变量配置
+
+测试环境配置项：
+- `ENVIRONMENT`: 设置为 "test"
+- `REDIS_HOST`: Redis服务器地址
+- `REDIS_PORT`: Redis端口
+- `REDIS_DB`: 数据库索引
+- `REDIS_PASSWORD`: 密码（可选）
+- `REDIS_DECODE_RESPONSES`: 是否自动解码响应
+- `REDIS_SOCKET_TIMEOUT`: Socket超时时间
+- `REDIS_SOCKET_CONNECT_TIMEOUT`: 连接超时时间
+
+生产环境配置项：
+- `ENVIRONMENT`: 设置为 "prod"
+- `REDIS_CLUSTER_PASSWORD`: 集群密码
+- `REDIS_CLUSTER_NODES`: 集群节点配置（JSON格式）
+- `REDIS_CLUSTER_DECODE_RESPONSES`: 是否自动解码响应
+- `REDIS_CLUSTER_SOCKET_TIMEOUT`: Socket超时时间
+- `REDIS_CLUSTER_SOCKET_CONNECT_TIMEOUT`: 连接超时时间
+- `REDIS_CLUSTER_SKIP_FULL_COVERAGE_CHECK`: 是否跳过完整性检查
 
 ## API文档
 
@@ -145,3 +213,94 @@ PowerCapFastAPI/
 ## 许可证
 
 MIT 
+
+## 镜像构建和部署
+
+### 镜像构建
+
+项目提供了两个独立的 Dockerfile：
+- `Dockerfile.api`: 用于构建 API 服务镜像
+- `Dockerfile.worker`: 用于构建 Celery Worker 镜像
+
+使用构建脚本构建镜像：
+
+```bash
+# 设置环境变量（根据实际情况修改）
+export IMAGE_REGISTRY="your-registry.com"
+export IMAGE_PROJECT="powercap"
+export VERSION="1.0.0"  # 可选，默认使用git tag
+
+# 构建镜像
+./build.sh
+
+# 构建并推送镜像到仓库
+PUSH=true ./build.sh
+```
+
+### 部署说明
+
+1. API服务部署：
+```yaml
+# deployment-api.yaml 示例
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: powercap-api
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+      - name: api
+        image: your-registry.com/powercap/powercap-api:latest
+        env:
+        - name: ENVIRONMENT
+          value: "prod"
+        - name: REDIS_CLUSTER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: password
+        - name: REDIS_CLUSTER_NODES
+          value: '[{"host":"redis-node1","port":6379},{"host":"redis-node2","port":6379},{"host":"redis-node3","port":6379}]'
+```
+
+2. Worker服务部署：
+```yaml
+# deployment-worker.yaml 示例
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: powercap-worker
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+      - name: worker
+        image: your-registry.com/powercap/powercap-worker:latest
+        env:
+        - name: ENVIRONMENT
+          value: "prod"
+        - name: REDIS_CLUSTER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: password
+        - name: REDIS_CLUSTER_NODES
+          value: '[{"host":"redis-node1","port":6379},{"host":"redis-node2","port":6379},{"host":"redis-node3","port":6379}]'
+```
+
+### 环境变量配置
+
+两个服务共享相同的环境变量配置：
+
+1. 基础配置：
+- `ENVIRONMENT`: 环境标识（"test"/"prod"）
+
+2. Redis配置（见Redis配置章节）
+
+3. 其他可选配置：
+- `LOG_LEVEL`: 日志级别（默认："INFO"）
+- `API_WORKERS`: API工作进程数（默认：1）
+- `CELERY_CONCURRENCY`: Celery并发数（默认：2） 

@@ -1,0 +1,44 @@
+# 构建阶段
+FROM python:3.10-slim as builder
+
+WORKDIR /build
+
+# 安装构建依赖
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 安装 uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 复制项目文件
+COPY . .
+
+# 创建虚拟环境并安装依赖
+RUN uv venv /build/.venv && \
+    . /build/.venv/bin/activate && \
+    uv pip install -e ".[dev]"
+
+# 运行阶段
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# 复制虚拟环境和应用代码
+COPY --from=builder /build/.venv /app/.venv
+COPY --from=builder /build/celery_app /app/celery_app
+COPY --from=builder /build/config /app/config
+COPY --from=builder /build/utils /app/utils
+COPY --from=builder /build/pyproject.toml /app/
+
+# 设置环境变量
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONPATH=/app
+ENV ENVIRONMENT=${ENVIRONMENT:-prod}
+
+# 健康检查（使用celery inspect ping）
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD celery -A celery_app.task_registry inspect ping -d celery@$HOSTNAME || exit 1
+
+# 启动命令
+CMD ["celery", "-A", "celery_app.task_registry", "worker", "--loglevel=info"] 
