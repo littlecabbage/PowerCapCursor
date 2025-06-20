@@ -2,6 +2,7 @@
 Celery配置模块
 """
 from typing import Any, Dict
+import os
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -42,7 +43,7 @@ class CelerySettings(BaseSettings):
     worker_send_task_events: bool = True  # 发送任务事件
     
     class Config:
-        env_file = ".env"
+        env_file = os.getenv("ENV_FILE", f"{os.getenv('ENVIRONMENT', 'test')}.env")
         case_sensitive = False
 
 
