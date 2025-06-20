@@ -1,6 +1,77 @@
 # PowerCapFastAPI
 
-基于FastAPI和Celery的企业级异步任务管理系统。
+企业级异步任务管理系统，基于 FastAPI + Celery，支持多环境分层配置、自动适配 Redis 单机/集群、统一配置入口、类型安全、易维护、易扩展。
+
+## 主要特性
+- FastAPI 高性能异步 API
+- Celery 分布式任务队列，支持定时任务
+- Redis 单机/集群自动适配
+- 多环境分层配置（test/prod/staging 可扩展）
+- 所有配置集中于 `config/settings.py`，类型安全、分组清晰、文档化
+- 日志系统灵活可配，支持多级别输出
+- 健康检查、自动重连、异常处理
+
+## 目录结构
+```
+PowerCapFastAPI-Cursor/
+├── config/           # 统一配置入口及分组文档
+├── celery_app/       # Celery任务、配置与示例
+├── powercap_api/     # FastAPI应用
+├── utils/            # 工具类
+├── tests/            # 测试用例
+├── test.env          # 测试环境变量
+├── prod.env          # 生产环境变量
+├── Dockerfile.*      # 镜像构建文件
+├── build.sh          # 镜像构建脚本
+└── README.md         # 项目说明
+```
+
+## 快速上手
+
+1. 选择环境并复制对应 env 文件：
+   ```bash
+   cp test.env .env  # 或 cp prod.env .env
+   export ENVIRONMENT=test  # 或 prod
+   ```
+2. 安装依赖：
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. 启动 Redis（本地或集群）
+4. 启动 API 服务：
+   ```bash
+   uvicorn powercap_api.main:app --reload
+   ```
+5. 启动 Celery Worker：
+   ```bash
+   celery -A celery_app.task_registry worker --loglevel=info
+   ```
+6. （可选）启动 Celery Beat 定时任务：
+   ```bash
+   celery -A celery_app.task_registry beat --loglevel=info
+   ```
+
+## 多环境分层配置
+- 所有配置集中在 `config/settings.py`，支持 test/prod/staging 等分层继承
+- 自动根据 `ENVIRONMENT` 变量选择对应配置类和 env 文件
+- 配置项分组清晰，类型安全，IDE 自动补全
+- 支持自定义扩展环境
+
+## 统一配置入口
+- 只需 `from config import settings` 获取所有配置
+- Redis/Celery/日志等均自动适配当前环境
+
+## 常见问题
+- **如何切换环境？**
+  设置 `ENVIRONMENT` 环境变量并准备对应的 env 文件即可。
+- **如何扩展新环境？**
+  在 `config/settings.py` 新增子类并配置新 env 文件。
+- **如何自定义配置项？**
+  直接在 `BaseSettings` 或子类中添加字段并补充 env 文件。
+
+## 参考文档
+- [config/README.md](config/README.md) 环境变量与配置说明
+- [celery_app/README.md](celery_app/README.md) Celery 配置与任务开发说明
 
 ## 功能特点
 

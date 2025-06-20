@@ -6,6 +6,7 @@ import os
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
+from config import get_celery_config
 
 
 class CelerySettings(BaseSettings):
@@ -50,19 +51,4 @@ class CelerySettings(BaseSettings):
 settings = CelerySettings()
 
 # Celery配置字典
-celery_config = {
-    "broker_url": settings.broker_url,
-    "result_backend": settings.result_backend,
-    "task_serializer": settings.task_serializer,
-    "result_serializer": settings.result_serializer,
-    "accept_content": settings.accept_content,
-    "timezone": settings.timezone,
-    "enable_utc": settings.enable_utc,
-    "task_track_started": settings.task_track_started,
-    "task_time_limit": settings.task_time_limit,
-    "task_soft_time_limit": settings.task_soft_time_limit,
-    "beat_schedule": settings.beat_schedule,
-    "worker_prefetch_multiplier": settings.worker_prefetch_multiplier,
-    "worker_max_tasks_per_child": settings.worker_max_tasks_per_child,
-    "worker_send_task_events": settings.worker_send_task_events,
-} 
+celery_config = get_celery_config() 
